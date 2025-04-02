@@ -1,0 +1,148 @@
+---
+title: "Time Series Analysis of Apple Stock (AAPL)"
+author: "Emmanuel Donkoh"
+date: "2025-04-02"
+output: html_document
+---
+
+# Stock Analysis of APPL data
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(forecast)
+library(tseries)
+library(lubridate)
+```
+
+## Introduction
+
+This project performs a comprehensive time series analysis on Apple's stock closing prices (AAPL). The objective is to understand the historical trend, seasonality, and structure in the data and forecast future prices using classical time series models such as ETS and ARIMA.
+
+## Load and Explore Data
+
+```{r}
+# Load data
+apple_data <- read.csv("AAPL.csv")
+
+# Convert date column to Date type
+apple_data$Date <- as.Date(apple_data$Date)
+
+# Sort data by date
+apple_data <- apple_data %>% arrange(Date)
+
+# Visualize the closing price
+ggplot(apple_data, aes(x = Date, y = Close)) +
+  geom_line(color = "black") +
+  labs(title = "AAPL Closing Prices Over Time", x = "Date", y = "Closing Price")
+
+```
+
+```{r}
+# Summary statistics
+summary(apple_data$Close)
+```
+
+The summary statistics of Apple's closing stock prices show a **minimum** of \$3.05 and a **maximum** of \$233.81, indicating a wide range in value over time. The **mean** price is \$60.91, while the **median** is lower at \$29.80, suggesting a right-skewed distribution influenced by recent price increases.
+
+## Create Time Series Object
+
+```{r}
+# Create monthly time series
+apple_monthly <- apple_data %>%
+  group_by(month = floor_date(Date, "month")) %>%
+  summarize(Close = mean(Close))
+
+aapl_ts <- ts(apple_monthly$Close, start = c(year(min(apple_monthly$month)), month(min(apple_monthly$month))), frequency = 12)
+
+# Plot time series
+plot.ts(aapl_ts, main = "Monthly Average Closing Price (AAPL)", ylab = "Price", col = "black")
+```
+
+## Decomposition
+
+```{r}
+# Decompose time series
+components <- decompose(aapl_ts)
+plot(components)
+```
+
+The additive decomposition of the AAPL time series splits the data into **trend**, **seasonal**, and **random (residual)** components. The **trend component** shows a steady upward movement, especially after 2018, indicating long-term growth in Apple’s stock price. The **seasonal component** reveals a clear repeating yearly pattern, suggesting consistent intra-year cyclicality. The **residual component** appears centered around zero with random fluctuations, indicating that the majority of the structure is well explained by the trend and seasonality.
+
+## Stationarity Check
+
+```{r}
+# Augmented Dickey-Fuller Test
+adf.test(aapl_ts)
+```
+
+The Augmented Dickey-Fuller (ADF) test result shows a p-value of 0.99. This means we **fail to reject the null hypothesis** of non-stationarity, indicating that the Apple stock time series is not stationary and requires **differencing** before fitting ARIMA.
+
+## ARIMA Modeling
+
+```{r}
+# Fit ARIMA model automatically
+arima_model <- auto.arima(aapl_ts)
+summary(arima_model)
+
+# Check residuals
+checkresiduals(arima_model)
+```
+
+The `auto.arima()` function selected an **ARIMA(0,2,3)** model, indicating the data was differenced twice to achieve stationarity and modeled with a 3rd order moving average. The residual diagnostics show no significant autocorrelation (ACF within bounds) and a roughly normal distribution, suggesting the model fits the data well and residuals behave like white noise.
+
+## ETS Modeling
+
+```{r}
+# Fit ETS model
+ets_model <- ets(aapl_ts)
+summary(ets_model)
+
+# Check residuals
+checkresiduals(ets_model)
+```
+
+The `ets()` function selected an **ETS(M,A,N)** model, which assumes multiplicative errors, an additive trend, and no seasonality. The residual plots show no strong autocorrelation (ACF within bounds) and an approximately normal distribution, indicating a well-fitted model with uncorrelated and homoscedastic residuals.
+
+## Model Comparison
+
+```{r}
+# Compare AIC and RMSE (in-sample only)
+model_eval <- data.frame(
+  Model = c("ETS", "ARIMA"),
+  AIC = c(ets_model$aic, arima_model$aic),
+  RMSE = c(accuracy(ets_model)[, "RMSE"], accuracy(arima_model)[, "RMSE"])
+)
+knitr::kable(model_eval, caption = "Model Evaluation Metrics")
+```
+
+Based on the model evaluation metrics, the ARIMA model outperforms the ETS model for this dataset. It has a significantly lower AIC (1313.71 vs. 1495.08), indicating a better trade-off between goodness-of-fit and model complexity. Additionally, the ARIMA model has a much lower in-sample RMSE (0.2469 vs. 6.4429), showing superior predictive accuracy. Therefore, ARIMA is the better choice for capturing the underlying patterns in Apple’s stock prices and generating accurate forecasts.
+
+```{r}
+accuracy(ets_model)
+```
+
+The ETS model’s in-sample accuracy shows a RMSE of 6.44, indicating moderate average prediction error magnitude. The Mean Absolute Scaled Error (MASE) of 0.2598 suggests the model performs significantly better than a naive forecast, and the low **ACF1** of **0.097** implies minimal autocorrelation in residuals—supporting good model fit.
+
+## Forecasting
+
+```{r}
+# Forecast with 80% and 95% confidence bounds
+ets_forecast <- forecast(ets_model, h = 12, level = c(80, 95))
+arima_forecast <- forecast(arima_model, h = 12, level = c(80, 95))
+
+# Plot forecasts with confidence intervals
+autoplot(aapl_ts) + autolayer(ets_forecast, series = "ETS") + autolayer(arima_forecast$mean, series = "ARIMA") + labs(title = "AAPL Forecast with 80% and 95% Confidence Intervals", x = "Year", y = "Price") + guides(colour = guide_legend(title = "Model"))
+
+```
+
+The forecast plot shows the predicted AAPL stock prices for the next 12 months using both the ARIMA and ETS models, along with their 80% and 95% confidence intervals. The ARIMA forecast is more conservative and stable, while the ETS forecast shows a sharper upward trend with wider confidence bounds, reflecting greater uncertainty. The shaded regions around each forecast line represent the intervals, with lighter areas indicating the 95% bounds. Overall, the ARIMA model provides tighter and more stable projections, which aligns with its lower RMSE and AIC observed earlier.
+
+
+
+## Conclusion
+
+Both ARIMA and ETS models provide reasonable forecasts, but based on AIC and RMSE, the ARIMA model offers a slightly better fit. This analysis demonstrates how time series models can help inform stock price forecasting, useful in investment and financial planning strategies.
+
+
+

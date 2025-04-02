@@ -19,7 +19,7 @@ This project performs a comprehensive time series analysis on the closing prices
 
 ## 📊 Forecast Preview
 
-![Forecast Plot](path_to_your_forecast_plot_image.png)
+![Forecast Plot](https://github.com/Penod/AAPL-Time-Series-Analysis/blob/main/forecast_plot.png)
 
 ---
 
@@ -29,7 +29,7 @@ This project performs a comprehensive time series analysis on the closing prices
 |----------------------------------------|------------------------------------------|
 | `aapl_time_series_analysis.Rmd`        | Main R Markdown file for full analysis   |
 | `AAPL.csv`                             | Historical daily closing price data      |
-| `forecast_plot.png` *(optional)*       | Output plot for visualization            |
+| `forecast_plot.png`                    | Output plot for visualization            |
 
 ---
 
